@@ -1,4 +1,4 @@
-# 🏗️ Infra-as-Code Foundation — GCP
+# Infra-as-Code Foundation — GCP
 
 > **Template: The "Infra-as-Code" Foundation**
 > Stack: **Terraform + GitHub Actions + Datadog** on Google Cloud Platform
