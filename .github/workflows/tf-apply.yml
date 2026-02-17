@@ -1,0 +1,89 @@
+name: "Terraform Apply"
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "terraform/**"
+
+env:
+  TF_VERSION: "1.7.0"
+  WORKING_DIR: "./terraform"
+
+jobs:
+  terraform-apply-dev:
+    name: "Apply — dev"
+    runs-on: ubuntu-latest
+    environment: dev
+    permissions:
+      contents: read
+      id-token: write  # Required for Workload Identity Federation
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (Workload Identity Federation)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init (dev)
+        run: |
+          cd ${{ env.WORKING_DIR }}
+          terraform init -backend-config=environments/dev/backend.conf
+
+      - name: Terraform Apply (dev)
+        run: |
+          cd ${{ env.WORKING_DIR }}
+          terraform apply \
+            -var-file=environments/dev/dev.tfvars \
+            -auto-approve
+
+  terraform-apply-prod:
+    name: "Apply — prod"
+    runs-on: ubuntu-latest
+    needs: terraform-apply-dev
+    environment: prod          # GitHub environment with required reviewers
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (Workload Identity Federation)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER_PROD }}
+          service_account: ${{ secrets.GCP_SA_EMAIL_PROD }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init (prod)
+        run: |
+          cd ${{ env.WORKING_DIR }}
+          terraform init -backend-config=environments/prod/backend.conf
+
+      - name: Terraform Plan (prod — safety check before apply)
+        run: |
+          cd ${{ env.WORKING_DIR }}
+          terraform plan \
+            -var-file=environments/prod/prod.tfvars \
+            -out=tfplan-prod
+
+      - name: Terraform Apply (prod)
+        run: |
+          cd ${{ env.WORKING_DIR }}
+          terraform apply tfplan-prod
