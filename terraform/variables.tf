@@ -115,3 +115,22 @@ variable "datadog_notification_channels" {
   type        = list(string)
   default     = []
 }
+
+###############################################################################
+# Security-sensitive inputs
+###############################################################################
+
+variable "db_password" {
+  description = "Cloud SQL application user's password. Set from TF_VAR_db_password, not committed tfvars."
+  type        = string
+  sensitive   = true
+}
+
+variable "gke_master_authorized_cidrs" {
+  description = "Trusted CIDRs for the public GKE API server. Leave empty unless access is required."
+  type = list(object({
+    cidr_block   = string
+    display_name = string
+  }))
+  default = []
+}

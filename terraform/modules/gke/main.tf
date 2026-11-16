@@ -28,10 +28,14 @@ resource "google_container_cluster" "cluster" {
     master_ipv4_cidr_block  = "172.16.0.0/28"
   }
 
+  # Only explicitly trusted CIDRs can access the public API endpoint.
   master_authorized_networks_config {
-    cidr_blocks {
-      cidr_block   = "0.0.0.0/0"           # Restrict in prod to VPN/bastion IPs
-      display_name = "all (restrict in prod)"
+    dynamic "cidr_blocks" {
+      for_each = var.master_authorized_cidrs
+      content {
+        cidr_block   = cidr_blocks.value.cidr_block
+        display_name = cidr_blocks.value.display_name
+      }
     }
   }
 

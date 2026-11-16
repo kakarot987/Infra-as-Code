@@ -1,1 +1,18 @@
-/terraform/.terraform/
+# Terraform caches, local state, plans and credentials
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/crash.log
+**/crash.*.log
+**/*.tfplan
+**/tfplan-*
+**/plan-output.txt
+**/terraform.tfvars
+**/*.auto.tfvars
+*.tfvars.json
+# IDE and machine-local configuration
+.idea/
+.vscode/
+.DS_Store
+.env
+.env.*

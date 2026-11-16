@@ -32,7 +32,6 @@ variable "db_password"      {
   type = string
   sensitive = true
   description = "Password for the Cloud SQL database"
-  default = "supersecret"
 }
 
 variable "backup_configuration" {

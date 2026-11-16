@@ -7,7 +7,7 @@
 
 ## Overview
 
-This template gives you a production-grade IaC foundation for GCP with:
+This template gives you a reusable IaC template (deployment validation required) for GCP with:
 
 - **VPC** — Custom-mode VPC with private subnets, Cloud NAT, and Private Service Access
 - **GKE** — Private cluster (Standard or Autopilot) with Workload Identity, auto-repair, and auto-upgrade
@@ -129,6 +129,7 @@ Navigate to **Settings → Secrets and variables → Actions** in your repositor
 | `GCP_SA_EMAIL_PROD` | `terraform@my-project-prod.iam.gserviceaccount.com` |
 | `TF_VAR_datadog_api_key` | Your Datadog API key |
 | `TF_VAR_datadog_app_key` | Your Datadog App key |
+| `TF_VAR_db_password` | A unique, randomly generated Cloud SQL password |
 
 ### 5. Update Variable Files
 
@@ -138,6 +139,7 @@ Edit the following files to match your GCP project IDs:
 - `terraform/environments/dev/backend.conf` — set `bucket`
 - `terraform/environments/prod/prod.tfvars` — set `project_id`
 - `terraform/environments/prod/backend.conf` — set `bucket`
+- `gke_master_authorized_cidrs` — optionally set an explicit trusted public IP range (e.g., a VPN's `/32`) via `TF_VAR_gke_master_authorized_cidrs`. By default, there are no user-defined authorized CIDRs; do not configure `0.0.0.0/0`.
 
 ---
 
@@ -236,3 +238,44 @@ If you have existing GCP resources to bring under Terraform management:
 ```bash
 terraform import module.vpc.google_compute_network.vpc projects/my-project/global/networks/my-vpc
 ```
+
+---
+
+## Validation status and operator safety
+
+**This repository contains a design template, not evidence of a successful GCP deployment.**
+Run `terraform fmt -recursive`, `terraform init -backend=false`, and `terraform validate`
+locally, then run a real dev plan before describing it as deployed. Verify the GKE control-plane
+access strategy and Datadog monitor queries with live metrics before production usage.
+
+For GitHub Actions, create the secrets `TF_VAR_db_password`, `TF_VAR_datadog_api_key`,
+and `TF_VAR_datadog_app_key` under each **dev/prod GitHub Environment** (with distinct
+database passwords). The workflows explicitly map these secrets to Terraform environment variables.
+An absent secret will prevent planning or applying; nothing should fall back to a static password.
+Terraform state may contain database passwords even when values are marked sensitive; restrict
+and encrypt state-bucket access. If a previous static password was ever used in a deployment,
+**rotate it**; removing the default does not erase Git history.
+
+The GKE control-plane endpoint is public but protected by an explicit list of approved CIDRs.
+The default empty list may prevent access from your workstation; set a restricted source
+range before trying remote `kubectl`. Prefer a private endpoint or approved bastion/VPN where possible.
+
+Production approval is not enabled merely by writing `environment: prod` in the workflow.
+Configure **Settings → Environments → prod → Required reviewers** to enforce manual approval.
+GitHub Actions may create billable GKE, Cloud SQL, and networking resources. Do not run an
+apply without checking project, state bucket, quota, and expected costs.
+
+### Teardown of development resources
+
+Once the correct dev project and backend are selected and sensitive `TF_VAR_*` values are
+available in your shell, run:
+
+```bash
+cd terraform
+terraform init -backend-config=environments/dev/backend.conf
+terraform plan -destroy -var-file=environments/dev/dev.tfvars
+terraform destroy -var-file=environments/dev/dev.tfvars
+```
+
+Inspect the destroy plan carefully; do not delete the state bucket before destroying
+tracked resources. Production resources have deletion protection and require separate handling.

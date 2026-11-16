@@ -102,6 +102,7 @@ module "gke" {
 
   # Autopilot mode — set to false for Standard clusters
   enable_autopilot = var.gke_autopilot
+  master_authorized_cidrs = var.gke_master_authorized_cidrs
 }
 
 ###############################################################################
@@ -121,6 +122,10 @@ module "cloudsql" {
   disk_size        = var.db_disk_size
 
   private_network = module.vpc.network_id
+  db_password     = var.db_password
+
+  # Cloud SQL private IP requires Private Service Access peering to be ready.
+  depends_on = [module.vpc]
 
   backup_configuration = {
     enabled            = true
