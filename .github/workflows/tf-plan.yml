@@ -32,7 +32,7 @@ jobs:
           import base64, pathlib, subprocess
           changed = subprocess.check_output(["git", "diff", "--name-only"], text=True).splitlines()
           for rel in changed:
-              path = pathlib.Path(rel)
+              path = pathlib.Path("..") / rel
               if path.is_file() and (rel.endswith(".tf") or rel.endswith(".tfvars")):
                   print("TF_FORMAT_BLOB_BEGIN " + rel + " " + base64.b64encode(path.read_bytes()).decode("ascii"))
           PY
