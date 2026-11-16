@@ -279,3 +279,39 @@ terraform destroy -var-file=environments/dev/dev.tfvars
 
 Inspect the destroy plan carefully; do not delete the state bucket before destroying
 tracked resources. Production resources have deletion protection and require separate handling.
+
+
+## Checkov remediation and security decisions (November 2026)
+
+- **Cloud SQL:** Enforces encrypted IP connections, enables PostgreSQL
+  error/connection duration/host logging, and configures pgAudit for DDL and
+  role audit events. An administrator must run `CREATE EXTENSION pgaudit;`
+  on each database after applying. Verify TLS-capable clients and expected
+  audit entries before reporting pgAudit as operational. These flags can
+  restart Cloud SQL and increase log volume/cost.
+- **Backups:** Backups are always enabled by the module with point-in-time
+  recovery, rather than controlled by an unconstrained boolean. Check actual
+  backups and retention after deployment.
+- **Version policy (CKV_GCP_79 exception):** PostgreSQL 15 remains pinned
+  until compatibility tests, supported-version review, rollback and a
+  controlled major-upgrade plan are complete. Do not force a major upgrade
+  solely to satisfy a policy checking the newest release.
+- **Statement logging (CKV_GCP_111 exception):** Raw `log_statement=all` may
+  leak sensitive values into centralized logs; pgAudit with controlled event
+  classes is preferred. Review the audit coverage required by your organization.
+- **GKE:** Production uses a private control-plane endpoint and requires
+  a real `gke_security_group` for Google Groups for GKE. GKE Binary
+  Authorization is enforced in prod and requires a configured organizational
+  admission policy allowing approved images. Standard clusters enable Calico
+  network policy; verify Autopilot compatibility independently.
+- **GKE management access:** A private production endpoint cannot be reached
+  directly from GitHub-hosted runners or your laptop without a proper VPN,
+  bastion, private runner or other approved control-plane access path.
+- **Network controls:** VPC subnet flow logs and GKE intranode visibility
+  increase monitoring costs. The explicit low-priority ingress deny does
+  not replace the GKE-managed cluster firewall rules; inspect them after
+  creating a cluster.
+- **Outstanding validation:** Checkov is a static scanner and its output
+  can be affected by module expansion and variables. Review every remaining
+  finding on its merits. Never globally disable Checkov to obtain a green
+  check. These changes are **not** a successful GCP plan/apply.

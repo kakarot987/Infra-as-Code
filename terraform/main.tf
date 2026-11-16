@@ -103,6 +103,7 @@ module "gke" {
   # Autopilot mode — set to false for Standard clusters
   enable_autopilot        = var.gke_autopilot
   master_authorized_cidrs = var.gke_master_authorized_cidrs
+  gke_security_group      = var.gke_security_group
 }
 
 ###############################################################################
@@ -128,7 +129,6 @@ module "cloudsql" {
   depends_on = [module.vpc]
 
   backup_configuration = {
-    enabled            = true
     binary_log_enabled = false
     start_time         = "03:00"
     retention_days     = var.environment == "prod" ? 30 : 7

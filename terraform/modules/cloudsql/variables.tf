@@ -36,13 +36,11 @@ variable "db_password" {
 
 variable "backup_configuration" {
   type = object({
-    enabled            = bool
     binary_log_enabled = bool
     start_time         = string
     retention_days     = number
   })
   default = {
-    enabled            = true
     binary_log_enabled = false
     start_time         = "03:00"
     retention_days     = 7

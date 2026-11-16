@@ -45,3 +45,9 @@ variable "master_authorized_cidrs" {
     error_message = "Supply valid, restricted CIDRs; allow-all ranges are not permitted."
   }
 }
+
+variable "gke_security_group" {
+  description = "Google Groups for GKE RBAC security group, e.g. gke-security-groups@your-domain. Required for production."
+  type        = string
+  default     = ""
+}

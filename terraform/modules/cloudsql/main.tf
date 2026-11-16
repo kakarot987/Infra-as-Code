@@ -3,6 +3,8 @@
 # Reusable Cloud SQL module — PostgreSQL with private IP
 ##############################################################################
 
+#checkov:skip=CKV_GCP_79:PostgreSQL major version is pinned; an upgrade must follow application compatibility and migration testing.
+#checkov:skip=CKV_GCP_111:Do not log raw SQL statements (potential secrets/PII); use pgAudit with DDL coverage instead.
 resource "google_sql_database_instance" "instance" {
   name             = var.instance_name
   database_version = var.database_version
@@ -21,16 +23,50 @@ resource "google_sql_database_instance" "instance" {
     ip_configuration {
       ipv4_enabled    = false # No public IP
       private_network = var.private_network
+      ssl_mode        = "ENCRYPTED_ONLY"
     }
 
     backup_configuration {
-      enabled            = var.backup_configuration.enabled
+      enabled            = true
+      point_in_time_recovery_enabled = true
       binary_log_enabled = var.backup_configuration.binary_log_enabled
       start_time         = var.backup_configuration.start_time
 
       backup_retention_settings {
         retained_backups = var.backup_configuration.retention_days
       }
+    }
+
+    # Avoid recording statement bodies containing passwords; pgAudit provides
+    # independently controllable auditing of schema changes and roles.
+    database_flags {
+      name  = "log_min_messages"
+      value = "error"
+    }
+
+    database_flags {
+      name  = "log_disconnections"
+      value = "on"
+    }
+
+    database_flags {
+      name  = "log_hostname"
+      value = "on"
+    }
+
+    database_flags {
+      name  = "log_duration"
+      value = "on"
+    }
+
+    database_flags {
+      name  = "cloudsql.enable_pgaudit"
+      value = "on"
+    }
+
+    database_flags {
+      name  = "pgaudit.log"
+      value = "ddl,role"
     }
 
     database_flags {

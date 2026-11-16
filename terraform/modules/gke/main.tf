@@ -3,6 +3,7 @@
 # Reusable GKE module — Standard or Autopilot private cluster
 ##############################################################################
 
+#checkov:skip=CKV_GCP_69:GKE_METADATA is enabled on separately managed google_container_node_pool.pools, as verified by the node-pool check.
 resource "google_container_cluster" "cluster" {
   name     = var.cluster_name
   location = var.region
@@ -13,6 +14,32 @@ resource "google_container_cluster" "cluster" {
   initial_node_count       = var.enable_autopilot ? null : 1
 
   enable_autopilot = var.enable_autopilot
+  resource_labels = {
+    environment = var.environment
+    managed_by  = "terraform"
+  }
+
+  # Standard-cluster traffic visibility; cloud logging costs must be evaluated.
+  enable_intranode_visibility = !var.enable_autopilot
+
+  master_auth {
+    client_certificate_config {
+      issue_client_certificate = false
+    }
+  }
+
+  # Production requires an organization-approved identity group.
+  dynamic "authenticator_groups_config" {
+    for_each = var.gke_security_group == "" ? [] : [var.gke_security_group]
+    content {
+      security_group = authenticator_groups_config.value
+    }
+  }
+
+  # Production must use an organization-configured Binary Authorization policy.
+  binary_authorization {
+    evaluation_mode = var.environment == "prod" ? "PROJECT_SINGLETON_POLICY_ENFORCE" : "DISABLED"
+  }
 
   network    = var.network
   subnetwork = var.subnetwork
@@ -24,7 +51,7 @@ resource "google_container_cluster" "cluster" {
 
   private_cluster_config {
     enable_private_nodes    = true
-    enable_private_endpoint = false # Public control plane for kubectl access
+    enable_private_endpoint = var.environment == "prod" # Private production endpoint requires a trusted access path
     master_ipv4_cidr_block  = "172.16.0.0/28"
   }
 
@@ -39,6 +66,15 @@ resource "google_container_cluster" "cluster" {
     }
   }
 
+  # Calico policy is configured for Standard; Autopilot manages its policy engine.
+  dynamic "network_policy" {
+    for_each = var.enable_autopilot ? [] : [1]
+    content {
+      enabled  = true
+      provider = "CALICO"
+    }
+  }
+
   workload_identity_config {
     workload_pool = "${var.project_id}.svc.id.goog"
   }
@@ -47,6 +83,10 @@ resource "google_container_cluster" "cluster" {
     http_load_balancing { disabled = false }
     horizontal_pod_autoscaling { disabled = false }
     gce_persistent_disk_csi_driver_config { enabled = true }
+    dynamic "network_policy_config" {
+      for_each = var.enable_autopilot ? [] : [1]
+      content { disabled = false }
+    }
   }
 
   release_channel {
@@ -64,6 +104,10 @@ resource "google_container_cluster" "cluster" {
 
   lifecycle {
     ignore_changes = [initial_node_count]
+    precondition {
+      condition     = var.environment != "prod" || var.gke_security_group != ""
+      error_message = "Set gke_security_group to a real Google Groups for GKE security group for production."
+    }
   }
 }
 

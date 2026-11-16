@@ -134,3 +134,9 @@ variable "gke_master_authorized_cidrs" {
   }))
   default = []
 }
+
+variable "gke_security_group" {
+  description = "Organization-managed Google Groups for GKE RBAC group. Required for prod; do not use a placeholder."
+  type        = string
+  default     = ""
+}
