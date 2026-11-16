@@ -16,6 +16,7 @@ resource "google_sql_database_instance" "instance" {
     availability_type = var.high_availability ? "REGIONAL" : "ZONAL"
     disk_size         = var.disk_size
     disk_autoresize   = true
+    user_labels      = { environment = var.environment }
 
     ip_configuration {
       ipv4_enabled    = false # No public IP

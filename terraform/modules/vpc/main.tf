@@ -7,6 +7,7 @@ resource "google_compute_network" "vpc" {
   name                    = var.network_name
   auto_create_subnetworks = false
   project                 = var.project_id
+  description             = "Managed ${var.environment} infrastructure VPC"
 }
 
 resource "google_compute_subnetwork" "subnets" {
