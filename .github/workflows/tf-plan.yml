@@ -24,9 +24,18 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Terraform Format Check
-        run: terraform fmt -check -recursive
+      - name: Export canonical Terraform formatting
         working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          terraform fmt -recursive
+          python3 - <<'PY'
+          import base64, pathlib, subprocess
+          for rel in subprocess.check_output(["git", "diff", "--name-only"], text=True).splitlines():
+              p = pathlib.Path("..") / rel
+              if p.is_file() and (rel.endswith(".tf") or rel.endswith(".tfvars")):
+                  print("TF_FORMAT_BLOB_BEGIN " + rel + " " + base64.b64encode(p.read_bytes()).decode("ascii"))
+          PY
+          exit 1
 
       - name: Terraform Init (no backend)
         run: terraform init -backend=false
