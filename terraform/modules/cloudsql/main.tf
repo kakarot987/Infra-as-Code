@@ -18,7 +18,7 @@ resource "google_sql_database_instance" "instance" {
     disk_autoresize   = true
 
     ip_configuration {
-      ipv4_enabled    = false                    # No public IP
+      ipv4_enabled    = false # No public IP
       private_network = var.private_network
     }
 
@@ -48,8 +48,8 @@ resource "google_sql_database_instance" "instance" {
     }
 
     maintenance_window {
-      day          = 7    # Sunday
-      hour         = 3    # 3 AM
+      day          = 7 # Sunday
+      hour         = 3 # 3 AM
       update_track = "stable"
     }
 

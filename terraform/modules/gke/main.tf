@@ -24,7 +24,7 @@ resource "google_container_cluster" "cluster" {
 
   private_cluster_config {
     enable_private_nodes    = true
-    enable_private_endpoint = false          # Public control plane for kubectl access
+    enable_private_endpoint = false # Public control plane for kubectl access
     master_ipv4_cidr_block  = "172.16.0.0/28"
   }
 
@@ -74,10 +74,10 @@ resource "google_container_cluster" "cluster" {
 resource "google_container_node_pool" "pools" {
   for_each = var.enable_autopilot ? {} : { for np in var.node_pools : np.name => np }
 
-  name       = each.value.name
-  cluster    = google_container_cluster.cluster.name
-  location   = var.region
-  project    = var.project_id
+  name     = each.value.name
+  cluster  = google_container_cluster.cluster.name
+  location = var.region
+  project  = var.project_id
 
   autoscaling {
     min_node_count = each.value.min_node_count

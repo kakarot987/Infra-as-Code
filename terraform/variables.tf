@@ -63,12 +63,12 @@ variable "gke_autopilot" {
 variable "gke_node_pools" {
   description = "List of node pool configurations (ignored in Autopilot mode)."
   type = list(object({
-    name               = string
-    machine_type       = string
-    min_node_count     = number
-    max_node_count     = number
-    disk_size_gb       = number
-    preemptible        = bool
+    name           = string
+    machine_type   = string
+    min_node_count = number
+    max_node_count = number
+    disk_size_gb   = number
+    preemptible    = bool
   }))
   default = []
 }

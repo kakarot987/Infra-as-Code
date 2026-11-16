@@ -74,7 +74,7 @@ module "vpc" {
 
   secondary_ranges = {
     "${var.environment}-subnet-gke" = [
-      { range_name = "pods",     ip_cidr_range = var.pods_cidr },
+      { range_name = "pods", ip_cidr_range = var.pods_cidr },
       { range_name = "services", ip_cidr_range = var.services_cidr },
     ]
   }
@@ -101,7 +101,7 @@ module "gke" {
   node_pools = var.gke_node_pools
 
   # Autopilot mode — set to false for Standard clusters
-  enable_autopilot = var.gke_autopilot
+  enable_autopilot        = var.gke_autopilot
   master_authorized_cidrs = var.gke_master_authorized_cidrs
 }
 
@@ -137,4 +137,3 @@ module "cloudsql" {
   deletion_protection = var.environment == "prod" ? true : false
 }
 
-# Formatting output capture: remove after CI diagnostic.

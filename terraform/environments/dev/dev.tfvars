@@ -22,7 +22,7 @@ gke_node_pools = [
     min_node_count = 1
     max_node_count = 3
     disk_size_gb   = 50
-    preemptible    = true   # Cost savings in dev
+    preemptible    = true # Cost savings in dev
   }
 ]
 

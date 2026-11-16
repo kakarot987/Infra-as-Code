@@ -22,7 +22,7 @@ gke_node_pools = [
     min_node_count = 2
     max_node_count = 10
     disk_size_gb   = 100
-    preemptible    = false  # No preemptible in prod
+    preemptible    = false # No preemptible in prod
   },
   {
     name           = "memory-optimized"
