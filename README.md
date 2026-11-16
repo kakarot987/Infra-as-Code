@@ -315,3 +315,20 @@ tracked resources. Production resources have deletion protection and require sep
   can be affected by module expansion and variables. Review every remaining
   finding on its merits. Never globally disable Checkov to obtain a green
   check. These changes are **not** a successful GCP plan/apply.
+
+
+### Scanner-specific review notes
+
+Checkov 3.4.5 requires any inline `checkov:skip` comments to be **inside**
+the resource scope. The scope-limited exceptions above address policy
+limitations and explicit environment decisions, not a blanket bypass:
+- `CKV_GCP_6`: the Google provider's `ssl_mode = "ENCRYPTED_ONLY"`
+  enforces encrypted SQL connections; Checkov may expect the older `require_ssl`.
+- `CKV_GCP_61`: flow logs are enabled on VPC subnets and intranode
+  visibility on Standard clusters; Autopilot's networking is managed separately.
+- `CKV_GCP_66`: Binary Authorization is enforced for production; unsigned
+  development demonstration images are not production-approved.
+- `CKV_GCP_69`: GKE metadata mode is set on separately managed node pools.
+
+Confirm these operational assumptions with `terraform plan` and GCP
+tests before merging. Exceptions are visible in Checkov's skipped count.

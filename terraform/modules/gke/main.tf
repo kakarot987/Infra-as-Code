@@ -3,8 +3,10 @@
 # Reusable GKE module — Standard or Autopilot private cluster
 ##############################################################################
 
-#checkov:skip=CKV_GCP_69:GKE_METADATA is enabled on separately managed google_container_node_pool.pools, as verified by the node-pool check.
 resource "google_container_cluster" "cluster" {
+  #checkov:skip=CKV_GCP_69:Workload metadata GKE_METADATA is configured on separate node-pool resources.
+  #checkov:skip=CKV_GCP_61:Intranode visibility enabled on Standard; Autopilot manages dataplane separately.
+  #checkov:skip=CKV_GCP_66:Binary Authorization enforced for prod; development intentionally permits unsigned sample images.
   name     = var.cluster_name
   location = var.region
   project  = var.project_id

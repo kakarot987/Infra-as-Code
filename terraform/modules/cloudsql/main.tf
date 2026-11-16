@@ -3,9 +3,10 @@
 # Reusable Cloud SQL module — PostgreSQL with private IP
 ##############################################################################
 
-#checkov:skip=CKV_GCP_79:PostgreSQL major version is pinned; an upgrade must follow application compatibility and migration testing.
-#checkov:skip=CKV_GCP_111:Do not log raw SQL statements (potential secrets/PII); use pgAudit with DDL coverage instead.
 resource "google_sql_database_instance" "instance" {
+  #checkov:skip=CKV_GCP_79:PostgreSQL major version pinned pending compatibility testing and planned upgrade.
+  #checkov:skip=CKV_GCP_111:Raw SQL statement logging can leak credentials and PII; pgAudit logs DDL and role changes.
+  #checkov:skip=CKV_GCP_6:ssl_mode ENCRYPTED_ONLY enforces transport encryption; the scanner checks older require_ssl.
   name             = var.instance_name
   database_version = var.database_version
   region           = var.region
@@ -39,6 +40,11 @@ resource "google_sql_database_instance" "instance" {
 
     # Avoid recording statement bodies containing passwords; pgAudit provides
     # independently controllable auditing of schema changes and roles.
+    database_flags {
+      name  = "log_min_error_statement"
+      value = "error"
+    }
+
     database_flags {
       name  = "log_min_messages"
       value = "error"
