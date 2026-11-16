@@ -27,10 +27,10 @@ resource "google_sql_database_instance" "instance" {
     }
 
     backup_configuration {
-      enabled            = true
+      enabled                        = true
       point_in_time_recovery_enabled = true
-      binary_log_enabled = var.backup_configuration.binary_log_enabled
-      start_time         = var.backup_configuration.start_time
+      binary_log_enabled             = var.backup_configuration.binary_log_enabled
+      start_time                     = var.backup_configuration.start_time
 
       backup_retention_settings {
         retained_backups = var.backup_configuration.retention_days
