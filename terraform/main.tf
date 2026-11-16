@@ -136,3 +136,5 @@ module "cloudsql" {
 
   deletion_protection = var.environment == "prod" ? true : false
 }
+
+# Formatting output capture: remove after CI diagnostic.
