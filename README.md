@@ -332,3 +332,34 @@ limitations and explicit environment decisions, not a blanket bypass:
 
 Confirm these operational assumptions with `terraform plan` and GCP
 tests before merging. Exceptions are visible in Checkov's skipped count.
+
+
+## Optional cloud planning in PRs
+
+**Default PR behavior:** Terraform format, init (without a remote backend),
+validate, TFLint, and Checkov execute. `Plan — dev (GCP opt-in)` is
+intentionally **skipped**, not passed or verified. This makes a public
+template usable without GCP credentials.
+
+To opt in to a real GCP plan:
+1. In **Settings → Secrets and variables → Actions → Variables** create the
+   **repository-level** variable `GCP_PLAN_ENABLED` with value `true`.
+   Job-level conditions do not reliably see variables scoped only to the
+   `dev` environment, so use a repository Actions variable for this switch.
+2. In **Settings → Environments → dev → Environment secrets** configure
+   `GCP_WIF_PROVIDER`, `GCP_SA_EMAIL`,
+   `TF_VAR_db_password`, `TF_VAR_datadog_api_key`, and
+   `TF_VAR_datadog_app_key` with real values. The Workload Identity
+   provider must be a full `projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL/providers/PROVIDER`
+   resource name; the service account must be authorized for federation.
+3. Configure an actual GCP dev project, enable the prerequisite APIs, create
+   the state bucket declared in `environments/dev/backend.conf`, and review
+   expected costs.
+4. Push a new commit or reopen/update the PR. Only same-repository PRs run a
+   credentialed plan; fork PRs intentionally skip it.
+5. Review the actual `terraform plan` result. A passing security job and
+   a skipped plan are **not evidence of deployment**.
+
+If enabled with missing secrets, a dedicated preflight job step now gives
+their **names**, without exposing their values, before attempting GCP auth.
+The plan workflow never applies cloud resources.
