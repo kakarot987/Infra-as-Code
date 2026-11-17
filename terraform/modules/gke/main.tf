@@ -4,6 +4,9 @@
 ##############################################################################
 
 resource "google_container_cluster" "cluster" {
+  #checkov:skip=CKV_GCP_69:Workload metadata GKE_METADATA is configured on separate node-pool resources.
+  #checkov:skip=CKV_GCP_61:Intranode visibility enabled on Standard; Autopilot manages dataplane separately.
+  #checkov:skip=CKV_GCP_66:Binary Authorization enforced for prod; development intentionally permits unsigned sample images.
   name     = var.cluster_name
   location = var.region
   project  = var.project_id
@@ -13,6 +16,32 @@ resource "google_container_cluster" "cluster" {
   initial_node_count       = var.enable_autopilot ? null : 1
 
   enable_autopilot = var.enable_autopilot
+  resource_labels = {
+    environment = var.environment
+    managed_by  = "terraform"
+  }
+
+  # Standard-cluster traffic visibility; cloud logging costs must be evaluated.
+  enable_intranode_visibility = !var.enable_autopilot
+
+  master_auth {
+    client_certificate_config {
+      issue_client_certificate = false
+    }
+  }
+
+  # Production requires an organization-approved identity group.
+  dynamic "authenticator_groups_config" {
+    for_each = var.gke_security_group == "" ? [] : [var.gke_security_group]
+    content {
+      security_group = authenticator_groups_config.value
+    }
+  }
+
+  # Production must use an organization-configured Binary Authorization policy.
+  binary_authorization {
+    evaluation_mode = var.environment == "prod" ? "PROJECT_SINGLETON_POLICY_ENFORCE" : "DISABLED"
+  }
 
   network    = var.network
   subnetwork = var.subnetwork
@@ -24,14 +53,27 @@ resource "google_container_cluster" "cluster" {
 
   private_cluster_config {
     enable_private_nodes    = true
-    enable_private_endpoint = false          # Public control plane for kubectl access
+    enable_private_endpoint = var.environment == "prod" # Private production endpoint requires a trusted access path
     master_ipv4_cidr_block  = "172.16.0.0/28"
   }
 
+  # Only explicitly trusted CIDRs can access the public API endpoint.
   master_authorized_networks_config {
-    cidr_blocks {
-      cidr_block   = "0.0.0.0/0"           # Restrict in prod to VPN/bastion IPs
-      display_name = "all (restrict in prod)"
+    dynamic "cidr_blocks" {
+      for_each = var.master_authorized_cidrs
+      content {
+        cidr_block   = cidr_blocks.value.cidr_block
+        display_name = cidr_blocks.value.display_name
+      }
+    }
+  }
+
+  # Calico policy is configured for Standard; Autopilot manages its policy engine.
+  dynamic "network_policy" {
+    for_each = var.enable_autopilot ? [] : [1]
+    content {
+      enabled  = true
+      provider = "CALICO"
     }
   }
 
@@ -43,6 +85,10 @@ resource "google_container_cluster" "cluster" {
     http_load_balancing { disabled = false }
     horizontal_pod_autoscaling { disabled = false }
     gce_persistent_disk_csi_driver_config { enabled = true }
+    dynamic "network_policy_config" {
+      for_each = var.enable_autopilot ? [] : [1]
+      content { disabled = false }
+    }
   }
 
   release_channel {
@@ -60,6 +106,10 @@ resource "google_container_cluster" "cluster" {
 
   lifecycle {
     ignore_changes = [initial_node_count]
+    precondition {
+      condition     = var.environment != "prod" || var.gke_security_group != ""
+      error_message = "Set gke_security_group to a real Google Groups for GKE security group for production."
+    }
   }
 }
 
@@ -70,10 +120,10 @@ resource "google_container_cluster" "cluster" {
 resource "google_container_node_pool" "pools" {
   for_each = var.enable_autopilot ? {} : { for np in var.node_pools : np.name => np }
 
-  name       = each.value.name
-  cluster    = google_container_cluster.cluster.name
-  location   = var.region
-  project    = var.project_id
+  name     = each.value.name
+  cluster  = google_container_cluster.cluster.name
+  location = var.region
+  project  = var.project_id
 
   autoscaling {
     min_node_count = each.value.min_node_count

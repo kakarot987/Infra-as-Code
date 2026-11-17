@@ -7,7 +7,7 @@
 
 ## Overview
 
-This template gives you a production-grade IaC foundation for GCP with:
+This template gives you a reusable IaC template (deployment validation required) for GCP with:
 
 - **VPC** — Custom-mode VPC with private subnets, Cloud NAT, and Private Service Access
 - **GKE** — Private cluster (Standard or Autopilot) with Workload Identity, auto-repair, and auto-upgrade
@@ -129,6 +129,7 @@ Navigate to **Settings → Secrets and variables → Actions** in your repositor
 | `GCP_SA_EMAIL_PROD` | `terraform@my-project-prod.iam.gserviceaccount.com` |
 | `TF_VAR_datadog_api_key` | Your Datadog API key |
 | `TF_VAR_datadog_app_key` | Your Datadog App key |
+| `TF_VAR_db_password` | A unique, randomly generated Cloud SQL password |
 
 ### 5. Update Variable Files
 
@@ -138,6 +139,7 @@ Edit the following files to match your GCP project IDs:
 - `terraform/environments/dev/backend.conf` — set `bucket`
 - `terraform/environments/prod/prod.tfvars` — set `project_id`
 - `terraform/environments/prod/backend.conf` — set `bucket`
+- `gke_master_authorized_cidrs` — optionally set an explicit trusted public IP range (e.g., a VPN's `/32`) via `TF_VAR_gke_master_authorized_cidrs`. By default, there are no user-defined authorized CIDRs; do not configure `0.0.0.0/0`.
 
 ---
 
@@ -236,3 +238,128 @@ If you have existing GCP resources to bring under Terraform management:
 ```bash
 terraform import module.vpc.google_compute_network.vpc projects/my-project/global/networks/my-vpc
 ```
+
+---
+
+## Validation status and operator safety
+
+**This repository contains a design template, not evidence of a successful GCP deployment.**
+Run `terraform fmt -recursive`, `terraform init -backend=false`, and `terraform validate`
+locally, then run a real dev plan before describing it as deployed. Verify the GKE control-plane
+access strategy and Datadog monitor queries with live metrics before production usage.
+
+For GitHub Actions, create the secrets `TF_VAR_db_password`, `TF_VAR_datadog_api_key`,
+and `TF_VAR_datadog_app_key` under each **dev/prod GitHub Environment** (with distinct
+database passwords). The workflows explicitly map these secrets to Terraform environment variables.
+An absent secret will prevent planning or applying; nothing should fall back to a static password.
+Terraform state may contain database passwords even when values are marked sensitive; restrict
+and encrypt state-bucket access. If a previous static password was ever used in a deployment,
+**rotate it**; removing the default does not erase Git history.
+
+The GKE control-plane endpoint is public but protected by an explicit list of approved CIDRs.
+The default empty list may prevent access from your workstation; set a restricted source
+range before trying remote `kubectl`. Prefer a private endpoint or approved bastion/VPN where possible.
+
+Production approval is not enabled merely by writing `environment: prod` in the workflow.
+Configure **Settings → Environments → prod → Required reviewers** to enforce manual approval.
+GitHub Actions may create billable GKE, Cloud SQL, and networking resources. Do not run an
+apply without checking project, state bucket, quota, and expected costs.
+
+### Teardown of development resources
+
+Once the correct dev project and backend are selected and sensitive `TF_VAR_*` values are
+available in your shell, run:
+
+```bash
+cd terraform
+terraform init -backend-config=environments/dev/backend.conf
+terraform plan -destroy -var-file=environments/dev/dev.tfvars
+terraform destroy -var-file=environments/dev/dev.tfvars
+```
+
+Inspect the destroy plan carefully; do not delete the state bucket before destroying
+tracked resources. Production resources have deletion protection and require separate handling.
+
+
+## Checkov remediation and security decisions (November 2026)
+
+- **Cloud SQL:** Enforces encrypted IP connections, enables PostgreSQL
+  error/connection duration/host logging, and configures pgAudit for DDL and
+  role audit events. An administrator must run `CREATE EXTENSION pgaudit;`
+  on each database after applying. Verify TLS-capable clients and expected
+  audit entries before reporting pgAudit as operational. These flags can
+  restart Cloud SQL and increase log volume/cost.
+- **Backups:** Backups are always enabled by the module with point-in-time
+  recovery, rather than controlled by an unconstrained boolean. Check actual
+  backups and retention after deployment.
+- **Version policy (CKV_GCP_79 exception):** PostgreSQL 15 remains pinned
+  until compatibility tests, supported-version review, rollback and a
+  controlled major-upgrade plan are complete. Do not force a major upgrade
+  solely to satisfy a policy checking the newest release.
+- **Statement logging (CKV_GCP_111 exception):** Raw `log_statement=all` may
+  leak sensitive values into centralized logs; pgAudit with controlled event
+  classes is preferred. Review the audit coverage required by your organization.
+- **GKE:** Production uses a private control-plane endpoint and requires
+  a real `gke_security_group` for Google Groups for GKE. GKE Binary
+  Authorization is enforced in prod and requires a configured organizational
+  admission policy allowing approved images. Standard clusters enable Calico
+  network policy; verify Autopilot compatibility independently.
+- **GKE management access:** A private production endpoint cannot be reached
+  directly from GitHub-hosted runners or your laptop without a proper VPN,
+  bastion, private runner or other approved control-plane access path.
+- **Network controls:** VPC subnet flow logs and GKE intranode visibility
+  increase monitoring costs. The explicit low-priority ingress deny does
+  not replace the GKE-managed cluster firewall rules; inspect them after
+  creating a cluster.
+- **Outstanding validation:** Checkov is a static scanner and its output
+  can be affected by module expansion and variables. Review every remaining
+  finding on its merits. Never globally disable Checkov to obtain a green
+  check. These changes are **not** a successful GCP plan/apply.
+
+
+### Scanner-specific review notes
+
+Checkov 3.4.5 requires any inline `checkov:skip` comments to be **inside**
+the resource scope. The scope-limited exceptions above address policy
+limitations and explicit environment decisions, not a blanket bypass:
+- `CKV_GCP_6`: the Google provider's `ssl_mode = "ENCRYPTED_ONLY"`
+  enforces encrypted SQL connections; Checkov may expect the older `require_ssl`.
+- `CKV_GCP_61`: flow logs are enabled on VPC subnets and intranode
+  visibility on Standard clusters; Autopilot's networking is managed separately.
+- `CKV_GCP_66`: Binary Authorization is enforced for production; unsigned
+  development demonstration images are not production-approved.
+- `CKV_GCP_69`: GKE metadata mode is set on separately managed node pools.
+
+Confirm these operational assumptions with `terraform plan` and GCP
+tests before merging. Exceptions are visible in Checkov's skipped count.
+
+
+## Optional cloud planning in PRs
+
+**Default PR behavior:** Terraform format, init (without a remote backend),
+validate, TFLint, and Checkov execute. `Plan — dev (GCP opt-in)` is
+intentionally **skipped**, not passed or verified. This makes a public
+template usable without GCP credentials.
+
+To opt in to a real GCP plan:
+1. In **Settings → Secrets and variables → Actions → Variables** create the
+   **repository-level** variable `GCP_PLAN_ENABLED` with value `true`.
+   Job-level conditions do not reliably see variables scoped only to the
+   `dev` environment, so use a repository Actions variable for this switch.
+2. In **Settings → Environments → dev → Environment secrets** configure
+   `GCP_WIF_PROVIDER`, `GCP_SA_EMAIL`,
+   `TF_VAR_db_password`, `TF_VAR_datadog_api_key`, and
+   `TF_VAR_datadog_app_key` with real values. The Workload Identity
+   provider must be a full `projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL/providers/PROVIDER`
+   resource name; the service account must be authorized for federation.
+3. Configure an actual GCP dev project, enable the prerequisite APIs, create
+   the state bucket declared in `environments/dev/backend.conf`, and review
+   expected costs.
+4. Push a new commit or reopen/update the PR. Only same-repository PRs run a
+   credentialed plan; fork PRs intentionally skip it.
+5. Review the actual `terraform plan` result. A passing security job and
+   a skipped plan are **not evidence of deployment**.
+
+If enabled with missing secrets, a dedicated preflight job step now gives
+their **names**, without exposing their values, before attempting GCP auth.
+The plan workflow never applies cloud resources.

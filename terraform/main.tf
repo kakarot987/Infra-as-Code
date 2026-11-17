@@ -74,7 +74,7 @@ module "vpc" {
 
   secondary_ranges = {
     "${var.environment}-subnet-gke" = [
-      { range_name = "pods",     ip_cidr_range = var.pods_cidr },
+      { range_name = "pods", ip_cidr_range = var.pods_cidr },
       { range_name = "services", ip_cidr_range = var.services_cidr },
     ]
   }
@@ -101,7 +101,9 @@ module "gke" {
   node_pools = var.gke_node_pools
 
   # Autopilot mode — set to false for Standard clusters
-  enable_autopilot = var.gke_autopilot
+  enable_autopilot        = var.gke_autopilot
+  master_authorized_cidrs = var.gke_master_authorized_cidrs
+  gke_security_group      = var.gke_security_group
 }
 
 ###############################################################################
@@ -121,9 +123,12 @@ module "cloudsql" {
   disk_size        = var.db_disk_size
 
   private_network = module.vpc.network_id
+  db_password     = var.db_password
+
+  # Cloud SQL private IP requires Private Service Access peering to be ready.
+  depends_on = [module.vpc]
 
   backup_configuration = {
-    enabled            = true
     binary_log_enabled = false
     start_time         = "03:00"
     retention_days     = var.environment == "prod" ? 30 : 7
@@ -131,3 +136,4 @@ module "cloudsql" {
 
   deletion_protection = var.environment == "prod" ? true : false
 }
+

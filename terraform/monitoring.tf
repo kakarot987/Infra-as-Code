@@ -4,11 +4,11 @@
 ##############################################################################
 
 locals {
-  env_tag      = "env:${var.environment}"
-  project_tag  = "project:${var.project_id}"
-  common_tags  = [local.env_tag, local.project_tag, "managed-by:terraform"]
-  notify       = join(" ", var.datadog_notification_channels)
-  is_prod      = var.environment == "prod"
+  env_tag     = "env:${var.environment}"
+  project_tag = "project:${var.project_id}"
+  common_tags = [local.env_tag, local.project_tag, "managed-by:terraform"]
+  notify      = join(" ", var.datadog_notification_channels)
+  is_prod     = var.environment == "prod"
 
   # Thresholds tighten in production
   cpu_threshold_critical = local.is_prod ? 85 : 95
@@ -148,9 +148,9 @@ resource "datadog_monitor" "cloudsql_disk" {
 ###############################################################################
 
 resource "datadog_dashboard" "infra_overview" {
-  title        = "${upper(var.environment)} — Infrastructure Overview"
-  description  = "GKE cluster and Cloud SQL health dashboard — managed by Terraform"
-  layout_type  = "ordered"
+  title       = "${upper(var.environment)} — Infrastructure Overview"
+  description = "GKE cluster and Cloud SQL health dashboard — managed by Terraform"
+  layout_type = "ordered"
 
   widget {
     group_definition {

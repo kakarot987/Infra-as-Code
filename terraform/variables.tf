@@ -63,12 +63,12 @@ variable "gke_autopilot" {
 variable "gke_node_pools" {
   description = "List of node pool configurations (ignored in Autopilot mode)."
   type = list(object({
-    name               = string
-    machine_type       = string
-    min_node_count     = number
-    max_node_count     = number
-    disk_size_gb       = number
-    preemptible        = bool
+    name           = string
+    machine_type   = string
+    min_node_count = number
+    max_node_count = number
+    disk_size_gb   = number
+    preemptible    = bool
   }))
   default = []
 }
@@ -114,4 +114,29 @@ variable "datadog_notification_channels" {
   description = "List of Datadog notification targets (e.g. @slack-alerts, @pagerduty)."
   type        = list(string)
   default     = []
+}
+
+###############################################################################
+# Security-sensitive inputs
+###############################################################################
+
+variable "db_password" {
+  description = "Cloud SQL application user's password. Set from TF_VAR_db_password, not committed tfvars."
+  type        = string
+  sensitive   = true
+}
+
+variable "gke_master_authorized_cidrs" {
+  description = "Trusted CIDRs for the public GKE API server. Leave empty unless access is required."
+  type = list(object({
+    cidr_block   = string
+    display_name = string
+  }))
+  default = []
+}
+
+variable "gke_security_group" {
+  description = "Organization-managed Google Groups for GKE RBAC group. Required for prod; do not use a placeholder."
+  type        = string
+  default     = ""
 }
